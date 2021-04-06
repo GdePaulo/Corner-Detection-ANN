@@ -1,11 +1,10 @@
 import os
-import sys
-
 import torch
 import numpy as np
 from PIL import Image, ImageDraw
 from tqdm import tqdm
 from numpy import asarray
+from sklearn.model_selection import StratifiedKFold
 
 
 class Feedforward(torch.nn.Module):
@@ -28,6 +27,7 @@ class Feedforward(torch.nn.Module):
 
 
 def get_images(path):
+    # TODO Could be used to augment the data set from the draw_shapes
     images = []
     # Loop through all images in the given directory.
     for filename in os.listdir(path):
@@ -99,7 +99,7 @@ def draw_trapezium(draw, c1, c2, c3, c4):
 def draw_octagon(draw, c1, c2, c3, c4):
     segment_length = c3[0] - c2[0]
     across_length = c4[0] - c1[0]
-    c5, c6, c7, c8 = (c4[0], c4[1] + segment_length), (c3[0], c3[1] + across_length), (c2[0], c2[1] + across_length),\
+    c5, c6, c7, c8 = (c4[0], c4[1] + segment_length), (c3[0], c3[1] + across_length), (c2[0], c2[1] + across_length), \
                      (c1[0], c1[1] + segment_length)
     draw.polygon((c1, c2, c3, c4, c5, c6, c7, c8), outline="white")
     return c1, c2, c3, c4, c5, c6, c7, c8
@@ -124,7 +124,7 @@ def wizard():
             sub_img = img.crop((i, j, i + sliding_window, j + sliding_window))
             is_corner = False
             for corner in corners:
-                if i + (sliding_window / 4) <= corner[0] < i + sliding_window - (sliding_window / 4) and +\
+                if i + (sliding_window / 4) <= corner[0] < i + sliding_window - (sliding_window / 4) and + \
                         j + (sliding_window / 4) <= corner[1] < j + sliding_window - (sliding_window / 4):
                     is_corner = True
                     break
@@ -148,35 +148,9 @@ def wizard():
     return corner_images, no_corner_images
 
 
-def main():
-    # Define layer dimensions.
-    # Input layer is of size 64 (8x8 kernel).
-    # Hidden layer is of size 16 (neurons).
-    # Output layer is of size 1 (probability of an edge in the given 8x8 sub-image).
-    in_features, hidden_features, out_features = 64, 16, 1
-
-    # corner_images = get_images(path='images/corners/')
-    # no_corner_images = get_images(path='images/no_corners/')
-
-    corner_images, no_corner_images = wizard()
-    print(corner_images[0])
-    print(no_corner_images[0])
-
-    x_test = [image for image in no_corner_images] + [image for image in corner_images]
-    x_test = torch.FloatTensor(x_test)
-    y_test = [0 for _ in range(len(no_corner_images))] + [1 for _ in range(len(corner_images))]
-    y_test = torch.FloatTensor(y_test)
-    x_train = x_test
-    y_train = y_test
-
-    model = Feedforward(in_features, hidden_features, out_features)
-    criterion = torch.nn.BCELoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
-
-    model.eval()
+def train_model(model, criterion, optimizer, x_train, x_test, y_train, y_test):
     y_pred = model(x_test)
     before_train = criterion(y_pred.squeeze(), y_test)
-    print('Test loss before training', before_train.item())
 
     model.train()
     epochs = 100000
@@ -194,18 +168,62 @@ def main():
     model.eval()
     y_pred = model(x_test)
     after_train = criterion(y_pred.squeeze(), y_test)
-    print('Test loss after Training', after_train.item())
 
+    bin_y_pred = [0 if x < 0.5 else 1 for x in y_pred]
+    percentage = 1 - np.sum(np.square(bin_y_pred - y_test.numpy())) / len(y_test)
+
+    return before_train.item(), after_train.item(), percentage
+
+    # print('Test loss after Training', after_train.item())
     # Print the labelling of the trained model.
-    model_labelling_result = zip(y_test, y_pred)
-    for i, label in enumerate(model_labelling_result):
-        print(
-            f'Expected {label[0]} : Predicted {label[1].data}. [{"Corner" if label[0] == 1 else "No Corner"}]'
-            f'[{"True" if label[0] == int(torch.round(label[1])) else "False"}]')
-        if label[0] == 0 and label[1].data > 0.85:
-            print(x_train[i].reshape((8, 8)))
-        elif label[0] == 1 and label[1].data < 0.1:
-            print(x_train[i].reshape((8, 8)))
+    # model_labelling_result = zip(y_test, y_pred)
+    # for i, label in enumerate(model_labelling_result):
+    #     print(
+    #         f'Expected {label[0]} : Predicted {label[1].data}. [{"Corner" if label[0] == 1 else "No Corner"}]'
+    #         f'[{"True" if label[0] == int(torch.round(label[1])) else "False"}]')
+    #     if label[0] == 0 and label[1].data > 0.85:
+    #         print(x_train[i].reshape((8, 8)))
+    #     elif label[0] == 1 and label[1].data < 0.1:
+    #         print(x_train[i].reshape((8, 8)))
+
+
+def main():
+    # Define layer dimensions.
+    # Input layer is of size 64 (8x8 kernel).
+    # Hidden layer is of size 16 (neurons).
+    # Output layer is of size 1 (probability of an edge in the given 8x8 sub-image).
+    in_features, hidden_features, out_features = 64, 16, 1
+
+    # corner_images = get_images(path='images/corners/')
+    # no_corner_images = get_images(path='images/no_corners/')
+
+    corner_images, no_corner_images = wizard()
+
+    x = [image for image in no_corner_images] + [image for image in corner_images]
+    x = torch.FloatTensor(x)
+    y = [0 for _ in range(len(no_corner_images))] + [1 for _ in range(len(corner_images))]
+    y = torch.FloatTensor(y)
+
+    skf = StratifiedKFold(n_splits=10)
+    skf.get_n_splits(x, y)
+    losses_before = np.array([])
+    losses_after = np.array([])
+    percentages = np.array([])
+    for train_index, test_index in skf.split(x, y):
+        x_train, x_test = x[train_index], x[test_index]
+        y_train, y_test = y[train_index], y[test_index]
+        model = Feedforward(in_features, hidden_features, out_features)
+        criterion = torch.nn.BCELoss()
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+        model.eval()
+        before, after, percentage = train_model(model, criterion, optimizer, x_train, x_test, y_train, y_test)
+        percentages = np.append(percentages, percentage)
+        losses_before = np.append(losses_before, before)
+        losses_after = np.append(losses_after, after)
+
+    for i in range(len(losses_before)):
+        print(f'{losses_before[i]} vs {losses_after[i]} with accuracy of: {percentages[i]}')
+    print(f'Mean before: {np.mean(losses_before)} vs mean after: {np.mean(losses_after)} with a mean accuracy of {np.mean(percentages)}')
 
 
 if __name__ == "__main__":
