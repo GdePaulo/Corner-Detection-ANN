@@ -1,4 +1,6 @@
 import os
+from os import path
+import pickle
 import torch
 import numpy as np
 from PIL import Image, ImageDraw
@@ -27,7 +29,6 @@ class Feedforward(torch.nn.Module):
 
 
 def get_images(path):
-    # TODO Could be used to augment the data set from the draw_shapes
     images = []
     # Loop through all images in the given directory.
     for filename in os.listdir(path):
@@ -41,7 +42,14 @@ def get_images(path):
     return images
 
 
-def draw_shapes(draw):
+def draw_pieslice(draw, img_size, angle, rotation, width):
+    offset = 40
+    shape = [(0-offset, 0-offset), (img_size+offset, img_size+offset)]
+
+    draw.pieslice(shape, start=rotation, end=angle+rotation, outline="white", width=width)
+
+
+def draw_shapes(draw, width):
     # We should eventually work to an automated shape generator
     # shape_coordinates = [[(4, 4), (20, 20)], [(30, 4), (50, 20)], [(4, 30), (20, 50)], [(30, 30), (50, 50)]]
     # corner_coordinates = []
@@ -51,12 +59,12 @@ def draw_shapes(draw):
     #     if coordinates:
     #         corner_coordinates.append(coordinates)
 
-    corner_coordinates = [draw_rectangle(draw, (4, 4), (20, 20)),
-                          draw_triangle(draw, (30, 4), (30, 30), (56, 30)),
-                          draw_trapezium(draw, (80, 4), (100, 4), (116, 20), (64, 20)),
-                          draw_octagon(draw, (50, 60), (67, 43), (91, 43), (108, 60))]
-    draw_line(draw, (4, 30), (20, 30))
-    draw_circle(draw, (4, 80), (40, 116))
+    corner_coordinates = [draw_rectangle(draw, width, (4, 4), (20, 20)),
+                          draw_triangle(draw, width, (30, 4), (30, 30), (56, 30)),
+                          draw_trapezium(draw, width, (80, 4), (100, 4), (116, 20), (64, 20)),
+                          draw_octagon(draw, width, (50, 60), (67, 43), (91, 43), (108, 60))]
+    draw_line(draw, width, (4, 30), (20, 30))
+    draw_circle(draw, width, (4, 80), (40, 116))
 
     return [item for sublist in corner_coordinates for item in sublist]
 
@@ -67,54 +75,46 @@ def rotate_shape(shape, rotation):
 
 # No corner shapes
 
-def draw_line(draw, left, right):
-    draw.line((left, right), fill="white")
+def draw_line(draw, width, left, right):
+    draw.line((left, right), fill="white", width=width)
     return
 
 
-def draw_circle(draw, left, right):
-    draw.ellipse((left, right), outline="white")
+def draw_circle(draw, width, left, right):
+    draw.ellipse((left, right), outline="white", width=width)
     return
 
 
 # Corner shapes
 
-def draw_rectangle(draw, top_left, bottom_right):
-    draw.rectangle((top_left, bottom_right), outline="white")
+def draw_rectangle(draw, width, top_left, bottom_right):
+    draw.rectangle((top_left, bottom_right), outline="white", width=width)
     top_right = (bottom_right[0], top_left[1])
     bottom_left = (top_left[0], bottom_right[1])
     return top_left, top_right, bottom_left, bottom_right
 
 
-def draw_triangle(draw, c1, c2, c3):
-    draw.polygon((c1, c2, c3), outline="white")
+def draw_triangle(draw, width, c1, c2, c3):
+    draw.line((c1, c2, c3, c1), fill="white", width=width)
     return c1, c2, c3
 
 
-def draw_trapezium(draw, c1, c2, c3, c4):
-    draw.polygon((c1, c2, c3, c4), outline="white")
+def draw_trapezium(draw, width, c1, c2, c3, c4):
+    draw.line((c1, c2, c3, c4, c1), fill="white", width=width)
     return c1, c2, c3, c4
 
 
-def draw_octagon(draw, c1, c2, c3, c4):
+def draw_octagon(draw, width, c1, c2, c3, c4):
     segment_length = c3[0] - c2[0]
     across_length = c4[0] - c1[0]
     c5, c6, c7, c8 = (c4[0], c4[1] + segment_length), (c3[0], c3[1] + across_length), (c2[0], c2[1] + across_length), \
                      (c1[0], c1[1] + segment_length)
-    draw.polygon((c1, c2, c3, c4, c5, c6, c7, c8), outline="white")
+    draw.line((c1, c2, c3, c4, c5, c6, c7, c8, c1), fill="white", width=width)
     return c1, c2, c3, c4, c5, c6, c7, c8
 
 
-def wizard():
-    img_size = 128
-    img = Image.new("L", (img_size, img_size))
-    draw = ImageDraw.Draw(img)
-    corners = draw_shapes(draw)
-    img.save("test.png")
+def wizard(img, img_size, corners, corner_images, no_corner_images):
     sliding_window = 8
-
-    corner_images = []
-    no_corner_images = []
 
     # corner_images_count = 0
     # no_corner_images_count = 0
@@ -141,11 +141,10 @@ def wizard():
                 if not any(np.array_equal(img_array, x) for x in no_corner_images):
                     no_corner_images.append(img_array)
 
-    print(len(corner_images))
+    # print(len(corner_images))
     # print(corner_images_count)
-    print(len(no_corner_images))
+    # print(len(no_corner_images))
     # print(no_corner_images_count)
-    return corner_images, no_corner_images
 
 
 def train_model(model, criterion, optimizer, x_train, x_test, y_train, y_test):
@@ -194,10 +193,46 @@ def main():
     # Output layer is of size 1 (probability of an edge in the given 8x8 sub-image).
     in_features, hidden_features, out_features = 64, 16, 1
 
-    # corner_images = get_images(path='images/corners/')
-    # no_corner_images = get_images(path='images/no_corners/')
+    corner_images, no_corner_images = [], []
 
-    corner_images, no_corner_images = wizard()
+    if path.exists("corner_images.pickle") and path.exists("no_corner_images.pickle"):
+        corner_images = pickle.load(open("corner_images.pickle", "rb"))
+        no_corner_images = pickle.load(open("no_corner_images.pickle", "rb"))
+    else:
+        for rotation in range(360)[::6]:
+            for angle in [45, 90, 135]:
+                for width in [1, 2, 3]:
+                    img_size = 21
+                    img = Image.new("L", (img_size, img_size))
+                    draw = ImageDraw.Draw(img)
+                    draw_pieslice(draw, img_size, angle, rotation, width)
+                    wizard(img, img_size, [(int(img_size/2), int(img_size/2))], corner_images, no_corner_images)
+
+        print(f'Amount of corner images: {len(corner_images)}')
+        print(f'Amount of no corner images: {len(no_corner_images)}')
+
+        for width in [1, 2, 3]:
+            img_size = 128
+            img = Image.new("L", (img_size, img_size))
+            draw = ImageDraw.Draw(img)
+            corners = draw_shapes(draw, width)
+            img.save(f"test_{width}.png")
+            wizard(img, img_size, corners, corner_images, no_corner_images)
+
+        print(f'Amount of corner images: {len(corner_images)}')
+        print(f'Amount of no corner images: {len(no_corner_images)}')
+
+        corner_images += get_images(path='images/corners/')
+        no_corner_images += get_images(path='images/no_corners/')
+
+    print(f'Amount of corner images: {len(corner_images)}')
+    print(f'Amount of no corner images: {len(no_corner_images)}')
+
+    with open('corner_images.pickle', 'wb') as handle:
+        pickle.dump(corner_images, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    with open('no_corner_images.pickle', 'wb') as handle:
+        pickle.dump(no_corner_images, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     x = [image for image in no_corner_images] + [image for image in corner_images]
     x = torch.FloatTensor(x)
