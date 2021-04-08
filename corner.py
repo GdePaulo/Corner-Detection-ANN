@@ -42,11 +42,12 @@ def get_images(path):
     return images
 
 
-def draw_pieslice(draw, img_size, angle, rotation, width):
-    offset = 40
-    shape = [(0-offset, 0-offset), (img_size+offset, img_size+offset)]
-
-    draw.pieslice(shape, start=rotation, end=angle+rotation, outline="white", width=width)
+# YOU HAVE FAILED US!!!
+# def draw_pieslice(draw, img_size, angle, rotation, width):
+#     offset = 40
+#     shape = [(0 - offset, 0 - offset), (img_size + offset, img_size + offset)]
+#
+#     draw.pieslice(shape, start=rotation, end=angle + rotation, outline="white", width=width)
 
 
 def draw_shapes(draw, width):
@@ -67,10 +68,6 @@ def draw_shapes(draw, width):
     draw_circle(draw, width, (4, 80), (40, 116))
 
     return [item for sublist in corner_coordinates for item in sublist]
-
-
-def rotate_shape(shape, rotation):
-    print()
 
 
 # No corner shapes
@@ -129,8 +126,7 @@ def wizard(img, img_size, corners, corner_images, no_corner_images):
                     is_corner = True
                     break
 
-            img_array = 1 - np.clip(np.array(sub_img), 0, 1)
-            img_array = img_array.flatten()
+            img_array = np.clip(np.array(sub_img), 0, 1).flatten()
 
             if is_corner:
                 # corner_images_count += 1
@@ -147,12 +143,34 @@ def wizard(img, img_size, corners, corner_images, no_corner_images):
     # print(no_corner_images_count)
 
 
-def train_model(model, criterion, optimizer, x_train, x_test, y_train, y_test):
+def get_highlighted_corners(model, image_path):
+    img = Image.open(image_path)
+    img = img.convert("L")
+    width, height = img.size
+
+    highlighted_corners_img = np.zeros((width, height))
+
+    sliding_window = 8
+    for i in range(width - sliding_window):
+        for j in range(height - sliding_window):
+            sub_img = img.crop((i, j, i + sliding_window, j + sliding_window))
+            img_array = np.clip(np.array(sub_img), 0, 1).flatten()
+            if model(torch.FloatTensor(img_array)) >= 0.5:
+                for _i in range(4):
+                    for _j in range(4):
+                        highlighted_corners_img[i+2+_i][j+2+_j] += 1
+
+    highlighted_corners_img = np.flip(np.rot90(highlighted_corners_img, 3), 1)
+    highlighted_corners_img *= 255.0 / highlighted_corners_img.max()
+    highlighted_corners_img = Image.fromarray(np.uint8(highlighted_corners_img))
+    highlighted_corners_img.save(f"{image_path}_output.png")
+
+
+def train_model(model, criterion, optimizer, x_train, x_test, y_train, y_test, epochs=100000):
     y_pred = model(x_test)
     before_train = criterion(y_pred.squeeze(), y_test)
 
     model.train()
-    epochs = 100000
 
     for _ in tqdm(range(epochs)):
         optimizer.zero_grad()
@@ -186,7 +204,7 @@ def train_model(model, criterion, optimizer, x_train, x_test, y_train, y_test):
     #         print(x_train[i].reshape((8, 8)))
 
 
-def main():
+def main(validation, train, corner_detection):
     # Define layer dimensions.
     # Input layer is of size 64 (8x8 kernel).
     # Hidden layer is of size 16 (neurons).
@@ -199,19 +217,22 @@ def main():
         corner_images = pickle.load(open("corner_images.pickle", "rb"))
         no_corner_images = pickle.load(open("no_corner_images.pickle", "rb"))
     else:
-        for rotation in range(360)[::6]:
-            for angle in [45, 90, 135]:
-                for width in [1, 2, 3]:
-                    img_size = 21
-                    img = Image.new("L", (img_size, img_size))
-                    draw = ImageDraw.Draw(img)
-                    draw_pieslice(draw, img_size, angle, rotation, width)
-                    wizard(img, img_size, [(int(img_size/2), int(img_size/2))], corner_images, no_corner_images)
+        # print("Pieslice data generation")
+        # for rotation in range(360)[::6]:
+        #     for angle in [45, 90, 135]:
+        #         for width in [1]:  # [1, 2, 3]
+        #             print(f'Rotation: {rotation}, angle: {angle}, width: {width}')
+        #             img_size = 21
+        #             img = Image.new("L", (img_size, img_size))
+        #             draw = ImageDraw.Draw(img)
+        #             draw_pieslice(draw, img_size, angle, rotation, width)
+        #             wizard(img, img_size, [(int(img_size / 2), int(img_size / 2))], corner_images, no_corner_images)
+        #
+        # print(f'Amount of corner images: {len(corner_images)}')
+        # print(f'Amount of no corner images: {len(no_corner_images)}')
 
-        print(f'Amount of corner images: {len(corner_images)}')
-        print(f'Amount of no corner images: {len(no_corner_images)}')
-
-        for width in [1, 2, 3]:
+        print("Draw shapes data generation")
+        for width in [1]:  # [1, 2, 3]
             img_size = 128
             img = Image.new("L", (img_size, img_size))
             draw = ImageDraw.Draw(img)
@@ -225,42 +246,58 @@ def main():
         corner_images += get_images(path='images/corners/')
         no_corner_images += get_images(path='images/no_corners/')
 
+        with open('corner_images.pickle', 'wb') as handle:
+            pickle.dump(corner_images, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        with open('no_corner_images.pickle', 'wb') as handle:
+            pickle.dump(no_corner_images, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
     print(f'Amount of corner images: {len(corner_images)}')
     print(f'Amount of no corner images: {len(no_corner_images)}')
-
-    with open('corner_images.pickle', 'wb') as handle:
-        pickle.dump(corner_images, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    with open('no_corner_images.pickle', 'wb') as handle:
-        pickle.dump(no_corner_images, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     x = [image for image in no_corner_images] + [image for image in corner_images]
     x = torch.FloatTensor(x)
     y = [0 for _ in range(len(no_corner_images))] + [1 for _ in range(len(corner_images))]
     y = torch.FloatTensor(y)
 
-    skf = StratifiedKFold(n_splits=10)
-    skf.get_n_splits(x, y)
-    losses_before = np.array([])
-    losses_after = np.array([])
-    percentages = np.array([])
-    for train_index, test_index in skf.split(x, y):
-        x_train, x_test = x[train_index], x[test_index]
-        y_train, y_test = y[train_index], y[test_index]
+    if validation:
+        skf = StratifiedKFold(n_splits=10, shuffle=True)
+        skf.get_n_splits(x, y)
+        losses_before = np.array([])
+        losses_after = np.array([])
+        percentages = np.array([])
+        for train_index, test_index in skf.split(x, y):
+            x_train, x_test = x[train_index], x[test_index]
+            y_train, y_test = y[train_index], y[test_index]
+            model = Feedforward(in_features, hidden_features, out_features)
+            criterion = torch.nn.BCELoss()
+            optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+            model.eval()
+            before, after, percentage = train_model(model, criterion, optimizer, x_train, x_test, y_train, y_test)
+            percentages = np.append(percentages, percentage)
+            losses_before = np.append(losses_before, before)
+            losses_after = np.append(losses_after, after)
+            print(f'{before} vs {after} with accuracy of: {percentage}')
+
+        for i in range(len(losses_before)):
+            print(f'{losses_before[i]} vs {losses_after[i]} with accuracy of: {percentages[i]}')
+        print(
+            f'Mean before: {np.mean(losses_before)} vs mean after: {np.mean(losses_after)} with a mean accuracy of {np.mean(percentages)}')
+    elif train:
+        x_train = x_test = x
+        y_train = y_test = y
         model = Feedforward(in_features, hidden_features, out_features)
         criterion = torch.nn.BCELoss()
         optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
         model.eval()
         before, after, percentage = train_model(model, criterion, optimizer, x_train, x_test, y_train, y_test)
-        percentages = np.append(percentages, percentage)
-        losses_before = np.append(losses_before, before)
-        losses_after = np.append(losses_after, after)
-
-    for i in range(len(losses_before)):
-        print(f'{losses_before[i]} vs {losses_after[i]} with accuracy of: {percentages[i]}')
-    print(f'Mean before: {np.mean(losses_before)} vs mean after: {np.mean(losses_after)} with a mean accuracy of {np.mean(percentages)}')
+        print(f'{before} vs {after} with accuracy of: {percentage}')
+        torch.save(model, "trained_model")
+    elif corner_detection:
+        model = torch.load("trained_model")
+        model.eval()
+        get_highlighted_corners(model=model, image_path="image.png")
 
 
 if __name__ == "__main__":
-    # execute only if run as a script
-    main()
+    main(validation=False, train=False, corner_detection=True)
