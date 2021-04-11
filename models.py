@@ -1,8 +1,9 @@
 import torch
-
+from torch.nn import *
+from tqdm import tqdm
 class Convolutional(torch.nn.Module):   
     def __init__(self):
-        super(ConvolutionalNet, self).__init__()
+        super(Convolutional, self).__init__()
 
         self.convolutional_layers = Sequential(
             # Defining a 2D convolution layer
@@ -20,12 +21,12 @@ class Convolutional(torch.nn.Module):
         self.linear_layers = Sequential(
             Linear(32 * 8 * 8, 16),
             Linear(16, 1),
-            Sigmoid(inplace=True)
+            Sigmoid()
         )
 
     # Defining the forward pass    
     def forward(self, x):
-        x = self.conventional_layers(x)
+        x = self.convolutional_layers(x)
         x = x.view(x.size(0), -1)
         x = self.linear_layers(x)
         return x
@@ -78,21 +79,26 @@ def test_model(model, criterion, optimizer, x, y):
         return loss, 100 * correct_predictions / len(y)
 
 def run(model_type, options, epochs, x_train=[], x_test=[], y_train=[], y_test=[]):
-    model = models.Feedforward(*options)
+    if model_type == "feedforward":
+        model = Feedforward(*options)
+    else:
+        model = Convolutional(*options)
+
     criterion = torch.nn.BCELoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+    # optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
     training_losses, training_accuracies = [], []
     testing_losses, testing_accuracies = [], []
     for _ in tqdm(range(epochs)):
         # model.train()
-        training_loss, training_accuracy = models.train_model(model, criterion, optimizer, x_train, y_train)
+        training_loss, training_accuracy = train_model(model, criterion, optimizer, x_train, y_train)
         training_losses.append(training_loss.data)
         training_accuracies.append(training_accuracy)
 
-        if x_test.nelement() > 0:        
+        if len(x_test) > 0:        
             # model.eval()
-            testing_loss, testing_accuracy = models.test_model(model, criterion, optimizer, x_test, y_test)
+            testing_loss, testing_accuracy = test_model(model, criterion, optimizer, x_test, y_test)
             testing_losses.append(testing_loss.data)
             testing_accuracies.append(testing_accuracy)
     return training_losses, testing_losses, training_accuracies, testing_accuracies

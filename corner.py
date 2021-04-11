@@ -42,9 +42,9 @@ def main(validation, train, corner_detection):
     in_features, hidden_features, out_features = 64, 16, 1
 
 
-    x, y = data.generate_data()
+    x, y = data.generate_data() 
     
-    epochs = 1000
+    epochs = 10000
 
     print("I just dated ")
 
@@ -73,7 +73,10 @@ def main(validation, train, corner_detection):
         #     f'Mean before: {np.mean(losses_before)} vs mean after: {np.mean(losses_after)} with a mean accuracy of {np.mean(percentages)}')
     elif train:
       
-        training_losses, _, training_accuracies, _ = models.run("feedforward", [in_features, hidden_features, out_features], epochs=epochs, x_train=x, y_train=y)
+        # training_losses, _, training_accuracies, _ = models.run("feedforward", [in_features, hidden_features, out_features], epochs=epochs, x_train=x, y_train=y)
+        x = torch.reshape(x, (len(x), 8, 8))
+        x = x.unsqueeze(1)
+        training_losses, _, training_accuracies, _ = models.run("convolutional", [], epochs=epochs, x_train=x, y_train=y)
         # # print(f'{before} vs {after} with accuracy of: {percentage}')
         print(f'training losses \n start: {training_losses[0]} end: {training_losses[-1]} min: {min(training_losses)}')
         # print(f'testing losses \n start: {testing_losses[0]} end: {testing_losses[-1]} min: {min(testing_losses)}')
