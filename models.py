@@ -7,19 +7,19 @@ class Convolutional(torch.nn.Module):
 
         self.convolutional_layers = Sequential(
             # Defining a 2D convolution layer
-            Conv2d(1, 16, kernel_size=3, stride=1, padding=1),
+            Conv2d(1, 8, kernel_size=3, stride=1, padding=1),
             #BatchNorm2d(4),
             ReLU(inplace=True),
-            #MaxPool2d(kernel_size=2, stride=2),
+            MaxPool2d(kernel_size=2),#, stride=2),
             # Defining another 2D convolution layer
-            Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
+            Conv2d(8, 16, kernel_size=3, stride=1, padding=1),
             # BatchNorm2d(4),
             ReLU(inplace=True),
             # MaxPool2d(kernel_size=2, stride=2),
         )
 
         self.linear_layers = Sequential(
-            Linear(32 * 8 * 8, 16),
+            Linear(16 * 4 * 4, 16),
             Linear(16, 1),
             Sigmoid()
         )
@@ -86,7 +86,7 @@ def run(model_type, options, epochs, x_train=[], x_test=[], y_train=[], y_test=[
 
     criterion = torch.nn.BCELoss()
     # optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
 
     training_losses, training_accuracies = [], []
     testing_losses, testing_accuracies = [], []

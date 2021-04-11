@@ -44,7 +44,7 @@ def main(validation, train, corner_detection):
 
     x, y = data.generate_data() 
     
-    epochs = 10000
+    epochs = 5000
 
     print("I just dated ")
 
@@ -60,7 +60,15 @@ def main(validation, train, corner_detection):
         for train_index, test_index in skf.split(x, y):
             x_train, x_test = x[train_index], x[test_index]
             y_train, y_test = y[train_index], y[test_index]
-            training_losses, testing_losses, training_accuracies, testing_accuracies = models.run("feedforward", [in_features, hidden_features, out_features], epochs=epochs, x_train=x_train, x_test=x_test, y_train=y_train, y_test=y_test)
+        
+            # training_losses, testing_losses, training_accuracies, testing_accuracies = models.run("feedforward", [in_features, hidden_features, out_features], epochs=epochs, x_train=x_train, x_test=x_test, y_train=y_train, y_test=y_test)
+
+            x_train = torch.reshape(x_train, (len(x_train), 8, 8))
+            x_train = x_train.unsqueeze(1)
+            x_test = torch.reshape(x_test, (len(x_test), 8, 8))
+            x_test = x_test.unsqueeze(1)
+            training_losses, testing_losses, training_accuracies, testing_accuracies = models.run("convolutional", [], epochs=epochs, x_train=x_train, x_test=x_test, y_train=y_train, y_test=y_test)
+
             best_training_losses = np.append(best_training_losses, min(training_losses))
             best_testing_losses = np.append(best_testing_losses, min(testing_losses))
             best_training_accuracies = np.append(best_training_accuracies, max(training_accuracies))
