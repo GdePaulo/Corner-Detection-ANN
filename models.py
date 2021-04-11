@@ -76,3 +76,23 @@ def test_model(model, criterion, optimizer, x, y):
         predictions = (y_pred.data >= 0.5).float().flatten()
         correct_predictions = (predictions == y).sum().item()
         return loss, 100 * correct_predictions / len(y)
+
+def run(model_type, options, epochs, x_train=[], x_test=[], y_train=[], y_test=[]):
+    model = models.Feedforward(*options)
+    criterion = torch.nn.BCELoss()
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+
+    training_losses, training_accuracies = [], []
+    testing_losses, testing_accuracies = [], []
+    for _ in tqdm(range(epochs)):
+        # model.train()
+        training_loss, training_accuracy = models.train_model(model, criterion, optimizer, x_train, y_train)
+        training_losses.append(training_loss.data)
+        training_accuracies.append(training_accuracy)
+
+        if x_test.nelement() > 0:        
+            # model.eval()
+            testing_loss, testing_accuracy = models.test_model(model, criterion, optimizer, x_test, y_test)
+            testing_losses.append(testing_loss.data)
+            testing_accuracies.append(testing_accuracy)
+    return training_losses, testing_losses, training_accuracies, testing_accuracies

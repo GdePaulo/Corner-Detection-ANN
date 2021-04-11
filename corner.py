@@ -43,66 +43,50 @@ def main(validation, train, corner_detection):
 
 
     x, y = data.generate_data()
-    model = models.Feedforward(in_features, hidden_features, out_features)
-    criterion = torch.nn.BCELoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
-    epochs = 10000
+    
+    epochs = 1000
 
     print("I just dated ")
 
     if validation:
         skf = StratifiedKFold(n_splits=10, shuffle=True)
         skf.get_n_splits(x, y)
-        losses_before = np.array([])
-        losses_after = np.array([])
-        percentages = np.array([])
+
+        best_training_losses = np.array([])
+        best_testing_losses = np.array([])
+        best_training_accuracies = np.array([])
+        best_testing_accuracies = np.array([])
+
         for train_index, test_index in skf.split(x, y):
             x_train, x_test = x[train_index], x[test_index]
             y_train, y_test = y[train_index], y[test_index]
-            model = Feedforward(in_features, hidden_features, out_features)
-            criterion = torch.nn.BCELoss()
-            optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
-            model.eval()
-            before, after, percentage = train_model(model, criterion, optimizer, x_train, x_test, y_train, y_test)
-            percentages = np.append(percentages, percentage)
-            losses_before = np.append(losses_before, before)
-            losses_after = np.append(losses_after, after)
-            print(f'{before} vs {after} with accuracy of: {percentage}')
-
-        for i in range(len(losses_before)):
-            print(f'{losses_before[i]} vs {losses_after[i]} with accuracy of: {percentages[i]}')
-        print(
-            f'Mean before: {np.mean(losses_before)} vs mean after: {np.mean(losses_after)} with a mean accuracy of {np.mean(percentages)}')
+            training_losses, testing_losses, training_accuracies, testing_accuracies = models.run("feedforward", [in_features, hidden_features, out_features], epochs=epochs, x_train=x_train, x_test=x_test, y_train=y_train, y_test=y_test)
+            best_training_losses = np.append(best_training_losses, min(training_losses))
+            best_testing_losses = np.append(best_testing_losses, min(testing_losses))
+            best_training_accuracies = np.append(best_training_accuracies, max(training_accuracies))
+            best_testing_accuracies = np.append(best_testing_accuracies, max(testing_accuracies))
+        
+        for i in range(len(best_testing_losses)):
+            print(f'minimum losses {i}\n training {best_training_losses[i]} vs testing {best_testing_losses[i]}')
+            print(f'maximum accuracies {i}\n training {best_training_accuracies[i]} vs testing {best_testing_accuracies[i]}')
+        # print(
+        #     f'Mean before: {np.mean(losses_before)} vs mean after: {np.mean(losses_after)} with a mean accuracy of {np.mean(percentages)}')
     elif train:
-        training_losses, training_accuracies = [], []
-        testing_losses, testing_accuracies = [], []
-        for _ in tqdm(range(epochs)):
-            # model.train()
-            training_loss, training_accuracy = models.train_model(model, criterion, optimizer, x, y)
-
-            # model.eval()
-            testing_loss, testing_accuracy = models.test_model(model, criterion, optimizer, x, y)
-
-            training_losses.append(training_loss.data)
-            testing_losses.append(testing_loss.data)
-
-            training_accuracies.append(training_accuracy)
-            testing_accuracies.append(testing_accuracy)
-
+      
+        training_losses, _, training_accuracies, _ = models.run("feedforward", [in_features, hidden_features, out_features], epochs=epochs, x_train=x, y_train=y)
         # # print(f'{before} vs {after} with accuracy of: {percentage}')
         print(f'training losses \n start: {training_losses[0]} end: {training_losses[-1]} min: {min(training_losses)}')
-        print(f'testing losses \n start: {testing_losses[0]} end: {testing_losses[-1]} min: {min(testing_losses)}')
+        # print(f'testing losses \n start: {testing_losses[0]} end: {testing_losses[-1]} min: {min(testing_losses)}')
         
         print(f'training accuracies \n start: {training_accuracies[0]} end: {training_accuracies[-1]} min: {max(training_accuracies)}')
-        print(f'testing accuracies \n start: {testing_accuracies[0]} end: {testing_accuracies[-1]} min: {max(testing_accuracies)}')
+        # print(f'testing accuracies \n start: {testing_accuracies[0]} end: {testing_accuracies[-1]} min: {max(testing_accuracies)}')
         # print(f'testing accuracies \n{testing_accuracies==training_accuracies}')
 
-        torch.save(model, "trained_model")
+        # torch.save(model, "trained_model")
     elif corner_detection:
         model = torch.load("trained_model")
         model.eval()
         get_highlighted_corners(model=model, image_path="image.png")
 
-
 if __name__ == "__main__":
-    main(validation=False, train=True, corner_detection=True)
+    main(validation=True, train=True, corner_detection=True)

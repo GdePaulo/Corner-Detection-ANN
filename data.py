@@ -21,25 +21,8 @@ def get_images(path):
             images.append(np.rot90(image, i).flatten())
     return images
 
-
-# YOU HAVE FAILED US!!!
-# def draw_pieslice(draw, img_size, angle, rotation, width):
-#     offset = 40
-#     shape = [(0 - offset, 0 - offset), (img_size + offset, img_size + offset)]
-#
-#     draw.pieslice(shape, start=rotation, end=angle + rotation, outline="white", width=width)
-
-
 def draw_shapes(draw, width):
     # We should eventually work to an automated shape generator
-    # shape_coordinates = [[(4, 4), (20, 20)], [(30, 4), (50, 20)], [(4, 30), (20, 50)], [(30, 30), (50, 50)]]
-    # corner_coordinates = []
-    #
-    # for coordinate in shape_coordinates:
-    #     coordinates = draw_polygon(draw, coordinate[0], coordinate[1])
-    #     if coordinates:
-    #         corner_coordinates.append(coordinates)
-
     corner_coordinates = [draw_rectangle(draw, width, (4, 4), (20, 20)),
                           draw_triangle(draw, width, (30, 4), (30, 30), (56, 30)),
                           draw_trapezium(draw, width, (80, 4), (100, 4), (116, 20), (64, 20)),
