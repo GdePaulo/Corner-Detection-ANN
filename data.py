@@ -21,6 +21,39 @@ def get_images(path):
             images.append(np.rot90(image, i).flatten())
     return images
 
+def draw_shapes2(draw, width):
+    triangleSize = ( 20, 20 )
+    pointySize = ( 15, 30 )
+    tiltedSize = ( 30, 15 )
+
+
+    t = [get_triangle_points(triangleSize, x) for x in range(4)]
+    shiftPoints(t[0], (98, 10))
+    shiftPoints(t[1], (98, 98))
+    shiftPoints(t[2], (10, 98))
+    shiftPoints(t[3], (10, 10))
+
+    s = [get_pointy_square_points(pointySize, x) for x in range(4)]
+    shiftPoints(s[0], (40, 24))
+    shiftPoints(s[1], (73, 24))
+    shiftPoints(s[2], (73, 74))
+    shiftPoints(s[3], (40, 74))
+    
+    r = [get_tilted_square_points(tiltedSize, x) for x in range(2)]
+    shiftPoints(r[0], (5, 49))
+    shiftPoints(r[1], (93, 49))
+    
+    # We should eventually work to an automated shape generator
+    corner_coordinates = []
+    for triangle in t:
+        corner_coordinates.append(draw_triangle(draw, width, *triangle))    
+    for pointySquare in s:
+        corner_coordinates.append(draw_trapezium(draw, width, *pointySquare))    
+    for tiltedSquare in r:
+        corner_coordinates.append(draw_trapezium(draw, width, *tiltedSquare))    
+    
+    return [item for sublist in corner_coordinates for item in sublist]
+
 def draw_shapes(draw, width):
     # We should eventually work to an automated shape generator
     corner_coordinates = [draw_rectangle(draw, width, (4, 4), (20, 20)),
@@ -31,6 +64,36 @@ def draw_shapes(draw, width):
     draw_circle(draw, width, (4, 80), (40, 116))
 
     return [item for sublist in corner_coordinates for item in sublist]
+
+def shiftPoints(points, shift):
+    for i, point in enumerate(points):
+        currentPoint = (point[0]+shift[0], point[1]+shift[1])
+        points[i]=currentPoint
+
+def get_triangle_points(size, rotation):
+    bounding_points = np.array([(0, 0), (size[0], 0), size, ( 0, size[0])])
+    indices = range(rotation, rotation + 3)
+    
+    points = bounding_points.take(indices, axis=0, mode= "wrap")
+    return list(zip(points[:,0], points[:,1]))
+def get_pointy_square_points(size, rotation):
+    bounding_points = [(0, 0), (size[0], 0), (size[0], size[1] / 2), size, (0, size[1]), (0, size[1] / 2)]
+    points = []
+    if rotation==0:
+        points = [x for i,x in enumerate(bounding_points) if i!=1 if i!=5]
+    elif rotation==1:
+        points = [x for i,x in enumerate(bounding_points) if i!=2 if i!=0]
+    else:
+        points = [x for i,x in enumerate(bounding_points) if i!=rotation if i!=rotation+2]
+    return points
+def get_tilted_square_points(size, rotation):
+    bounding_points = [(0, 0), (size[0] / 2, 0), (size[0], 0), (size[0], size[1]), (size[0] / 2, size[1]), (0, size[1])]
+    points = []
+    if rotation==0:
+        points = [x for i,x in enumerate(bounding_points) if i!=2 if i!=5]
+    elif rotation==1:
+        points = [x for i,x in enumerate(bounding_points) if i!=0 if i!=3]
+    return points
 
 
 # No corner shapes
@@ -101,18 +164,26 @@ def wizard(img, img_size, corners, corner_images, no_corner_images):
 def generate_data():
     corner_images, no_corner_images = [], []
 
-    if path.exists("corner_images.pickle") and path.exists("no_corner_images.pickle"):
+    if  path.exists("corner_images.pickle") and path.exists("no_corner_images.pickle"):
         corner_images = pickle.load(open("corner_images.pickle", "rb"))
         no_corner_images = pickle.load(open("no_corner_images.pickle", "rb"))
     else:
-         
-
         print("Draw shapes data generation")
         img_size = 128
+        width = 1
         img = Image.new("L", (img_size, img_size))
         draw = ImageDraw.Draw(img)
         corners = draw_shapes(draw, width)
         img.save(f"test_{width}.png")
+        wizard(img, img_size, corners, corner_images, no_corner_images)
+
+        print(f'Amount of corner images: {len(corner_images)}')
+        print(f'Amount of no corner images: {len(no_corner_images)}')
+
+        img = Image.new("L", (img_size, img_size))
+        draw = ImageDraw.Draw(img)
+        corners = draw_shapes2(draw, width)
+        img.save(f"test_{width}_2.png")
         wizard(img, img_size, corners, corner_images, no_corner_images)
 
         print(f'Amount of corner images: {len(corner_images)}')
@@ -136,3 +207,5 @@ def generate_data():
     y = torch.FloatTensor(y)
     return x, y
 
+if __name__ == "__main__":
+    generate_data()

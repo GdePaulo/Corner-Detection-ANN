@@ -56,35 +56,61 @@ def main(validation, train, corner_detection):
         best_testing_losses = np.array([])
         best_training_accuracies = np.array([])
         best_testing_accuracies = np.array([])
-
+        
+        last_training_losses = np.array([])
+        last_testing_losses = np.array([])
+        last_training_accuracies = np.array([])
+        last_testing_accuracies = np.array([])
+        
         for train_index, test_index in skf.split(x, y):
             x_train, x_test = x[train_index], x[test_index]
             y_train, y_test = y[train_index], y[test_index]
         
-            # training_losses, testing_losses, training_accuracies, testing_accuracies = models.run("feedforward", [in_features, hidden_features, out_features], epochs=epochs, x_train=x_train, x_test=x_test, y_train=y_train, y_test=y_test)
+            training_losses, testing_losses, training_accuracies, testing_accuracies = models.run("feedforward", [in_features, hidden_features, out_features], epochs=epochs, x_train=x_train, x_test=x_test, y_train=y_train, y_test=y_test)
 
-            x_train = torch.reshape(x_train, (len(x_train), 8, 8))
-            x_train = x_train.unsqueeze(1)
-            x_test = torch.reshape(x_test, (len(x_test), 8, 8))
-            x_test = x_test.unsqueeze(1)
-            training_losses, testing_losses, training_accuracies, testing_accuracies = models.run("convolutional", [], epochs=epochs, x_train=x_train, x_test=x_test, y_train=y_train, y_test=y_test)
+            # x_train = torch.reshape(x_train, (len(x_train), 8, 8))
+            # x_train = x_train.unsqueeze(1)
+            # x_test = torch.reshape(x_test, (len(x_test), 8, 8))
+            # x_test = x_test.unsqueeze(1)
+            # training_losses, testing_losses, training_accuracies, testing_accuracies = models.run("convolutional", [], epochs=epochs, x_train=x_train, x_test=x_test, y_train=y_train, y_test=y_test)
 
             best_training_losses = np.append(best_training_losses, min(training_losses))
             best_testing_losses = np.append(best_testing_losses, min(testing_losses))
             best_training_accuracies = np.append(best_training_accuracies, max(training_accuracies))
             best_testing_accuracies = np.append(best_testing_accuracies, max(testing_accuracies))
+
+            last_training_losses = np.append(last_training_losses, training_losses[-1])
+            last_testing_losses = np.append(last_testing_losses, testing_losses[-1])
+            last_training_accuracies = np.append(last_training_accuracies, training_accuracies[-1])
+            last_testing_accuracies = np.append(last_testing_accuracies, testing_accuracies[-1])
         
         for i in range(len(best_testing_losses)):
             print(f'minimum losses {i}\n training {best_training_losses[i]} vs testing {best_testing_losses[i]}')
             print(f'maximum accuracies {i}\n training {best_training_accuracies[i]} vs testing {best_testing_accuracies[i]}')
+            
+            print(f'last losses {i}\n training {last_training_losses[i]} vs testing {last_testing_losses[i]}')
+            print(f'last accuracies {i}\n training {last_training_accuracies[i]} vs testing {last_testing_accuracies[i]}')
+
+        k_data = [[] for x in range(4)]
+        if  path.exists("k_data.pickle"):
+            k_data = pickle.load(open("k_data.pickle", "rb"))
+        
+        with open('k_data.pickle', 'wb') as handle:
+            k_data[0].append(np.mean(last_training_losses))
+            k_data[1].append(np.mean(last_testing_losses))
+            k_data[2].append(np.mean(last_training_accuracies))
+            k_data[3].append(np.mean(last_testing_accuracies))
+            pickle.dump(k_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
         # print(
         #     f'Mean before: {np.mean(losses_before)} vs mean after: {np.mean(losses_after)} with a mean accuracy of {np.mean(percentages)}')
     elif train:
       
-        # training_losses, _, training_accuracies, _ = models.run("feedforward", [in_features, hidden_features, out_features], epochs=epochs, x_train=x, y_train=y)
-        x = torch.reshape(x, (len(x), 8, 8))
-        x = x.unsqueeze(1)
-        training_losses, _, training_accuracies, _ = models.run("convolutional", [], epochs=epochs, x_train=x, y_train=y)
+        training_losses, _, training_accuracies, _ = models.run("feedforward", [in_features, hidden_features, out_features], epochs=epochs, x_train=x, y_train=y)
+        # x = torch.reshape(x, (len(x), 8, 8))
+        # x = x.unsqueeze(1)
+        # training_losses, _, training_accuracies, _ = models.run("convolutional", [], epochs=epochs, x_train=x, y_train=y)
         # # print(f'{before} vs {after} with accuracy of: {percentage}')
         print(f'training losses \n start: {training_losses[0]} end: {training_losses[-1]} min: {min(training_losses)}')
         # print(f'testing losses \n start: {testing_losses[0]} end: {testing_losses[-1]} min: {min(testing_losses)}')
@@ -95,7 +121,7 @@ def main(validation, train, corner_detection):
 
         # torch.save(model, "trained_model")
     elif corner_detection:
-        model = torch.load("trained_model")
+        model = torch.load("trained_feedforward_model")
         model.eval()
         get_highlighted_corners(model=model, image_path="image.png")
 

@@ -101,4 +101,5 @@ def run(model_type, options, epochs, x_train=[], x_test=[], y_train=[], y_test=[
             testing_loss, testing_accuracy = test_model(model, criterion, optimizer, x_test, y_test)
             testing_losses.append(testing_loss.data)
             testing_accuracies.append(testing_accuracy)
+    torch.save(model, f"trained_{model_type}_model")
     return training_losses, testing_losses, training_accuracies, testing_accuracies
