@@ -2,25 +2,19 @@ import torch
 from torch.nn import *
 from tqdm import tqdm
 class Convolutional(torch.nn.Module):   
-    def __init__(self):
+    def __init__(self, features=[32, 8, 1]):
         super(Convolutional, self).__init__()
 
         self.convolutional_layers = Sequential(
             # Defining a 2D convolution layer
-            Conv2d(1, 8, kernel_size=3, stride=1, padding=1),
-            #BatchNorm2d(4),
+            Conv2d(1, features[0], kernel_size=3, stride=1, padding=1),
+            # ReLU(inplace=True),
+            MaxPool2d(kernel_size=2, stride=2),
             ReLU(inplace=True),
-            MaxPool2d(kernel_size=2),#, stride=2),
-            # Defining another 2D convolution layer
-            Conv2d(8, 16, kernel_size=3, stride=1, padding=1),
-            # BatchNorm2d(4),
-            ReLU(inplace=True),
-            # MaxPool2d(kernel_size=2, stride=2),
         )
 
-        self.linear_layers = Sequential(
-            Linear(16 * 4 * 4, 16),
-            Linear(16, 1),
+        self.linear_layers = Sequential(            
+            Linear(features[0] * 8 * 8 // 4, 1),
             Sigmoid()
         )
 
@@ -48,6 +42,7 @@ class Feedforward(torch.nn.Module):
         output = self.fc2(relu)
         output = self.sigmoid(output)
         return output
+
 def train_model(model, criterion, optimizer, x, y):
     optimizer.zero_grad()
     # Forward pass
@@ -58,8 +53,6 @@ def train_model(model, criterion, optimizer, x, y):
     loss.backward()
     optimizer.step()
 
-    # bin_y_pred = [0 if x < 0.5 else 1 for x in y_pred]
-    # accuracy = 1 - np.sum(np.square(bin_y_pred - y_test.numpy())) / len(y_test)
     predictions = (y_pred.data >= 0.5).float().flatten()
     correct_predictions = (predictions == y).sum().item()
 
@@ -72,8 +65,6 @@ def test_model(model, criterion, optimizer, x, y):
         y_pred = model(x)
         # Compute Loss
         loss = criterion(y_pred.squeeze(), y)
-        # bin_y_pred = [0 if x < 0.5 else 1 for x in y_pred]
-        # accuracy = 1 - np.sum(np.square(bin_y_pred - y_test.numpy())) / len(y_test)
         predictions = (y_pred.data >= 0.5).float().flatten()
         correct_predictions = (predictions == y).sum().item()
         return loss, 100 * correct_predictions / len(y)
@@ -82,6 +73,11 @@ def run(model_type, options, epochs, x_train=[], x_test=[], y_train=[], y_test=[
     if model_type == "feedforward":
         model = Feedforward(*options)
     else:
+        x_train = torch.reshape(x_train, (len(x_train), 8, 8))
+        x_train = x_train.unsqueeze(1)
+        x_test = torch.reshape(x_test, (len(x_test), 8, 8))
+        x_test = x_test.unsqueeze(1)    
+    
         model = Convolutional(*options)
 
     criterion = torch.nn.BCELoss()
